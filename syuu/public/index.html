@@ -17,6 +17,8 @@
   <!-- 次の文字を入力するフォーム -->
   <input id="nextWordInput" type="text" />
   <button id="nextWordSendButton">送信</button>
+  <!-- リセットを実行するボタン -->
+  <button id="resetButton">リセット↻</button>
   <!-- JavaScriptを実行 -->
   <script>
     window.onload = async (event) => {
@@ -63,6 +65,19 @@
       paragraph.innerHTML = `前の単語: ${previousWord}`;
       // inputタグの中身を消去する
       nextWordInput.value = "";
+    }
+    
+    // リセットボタン押下じに実行
+    document.querySelector("#resetButton").onclick = async (event) => {
+      // POST /shiritori/resetを実行
+      const response = await fetch("/shiritori/reset", { method: "POST" });
+      // status: 200以外が返ってきた場合にエラーを表示
+      if (response.status !== 200) {
+        const errorJson = await response.text();
+        const errorObj = JSON.parse(errorJson);
+        alert(errorObj["errorMessage"]);
+        return;
+      }
     }
   </script>
 </body>
