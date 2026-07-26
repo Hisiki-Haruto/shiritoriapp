@@ -2,7 +2,8 @@
 import { serveDir } from "jsr:@std/http/file-server";
 
 // 直前の単語を保持しておく
-let previousWord = "しりとり";
+let previousWord = ["しりとり"];
+let isGameOver = false;
 // localhostにDenoのHTTPサーバーを展開
 Deno.serve(async (_req) => {
     // パス名を取得する
@@ -12,7 +13,7 @@ Deno.serve(async (_req) => {
 
     // GET /shiritori: 直前の単語を返す
     if (_req.method === "GET" && pathname === "/shiritori") {
-        return new Response(previousWord);
+        return new Response(previousWord.at(-1));
     }
 
     // POST /shiritori: 次の単語を受け取って保存する
@@ -21,13 +22,25 @@ Deno.serve(async (_req) => {
         const requestJson = await _req.json();
         // JSONの中からnextWordを取得
         const nextWord = requestJson["nextWord"];
+        const lastWord = previousWord.at(-1);
 
-        // previousWordの末尾とnextWordの先頭が同一か確認
-        if (previousWord.slice(-1) === nextWord.slice(0, 1)) {
-            // 同一であれば、previousWordを更新
-            previousWord = nextWord;
-        } // 同一でない単語の入力時に、エラーを返す
-        else {
+        if (isGameOver) {
+            return new Response(
+                JSON.stringify({
+                    "errorMessage": "ゲームは終了しています。リセットしてください。",
+                    "errorCode": "10003",
+                }),
+                {
+                    status: 409,
+                    headers: {
+                        "Content-Type": "application/json; charset=utf-8",
+                    },
+                },
+            );
+        }
+
+        // 前の単語に続いていない場合、エラーを返す
+        if (lastWord.slice(-1) !== nextWord.slice(0, 1)) {
             return new Response(
                 JSON.stringify({
                     "errorMessage": "前の単語に続いていません",
@@ -42,8 +55,50 @@ Deno.serve(async (_req) => {
             );
         }
 
-        // 現在の単語を返す
-        return new Response(previousWord);
+        // すでに入力された単語の場合、エラーを返す
+        if (previousWord.includes(nextWord)) {
+            isGameOver = true;
+            return new Response(
+                JSON.stringify({
+                    "errorMessage": "すでに使用された単語が入力されました。",
+                    "errorCode": "10002",
+                }),
+                {
+                    status: 401,
+                    headers: {
+                        "Content-Type": "application/json; charset=utf-8",
+                    },
+                },
+            );
+        }
+
+        // 「ん」で終わる単語の場合、ゲーム終了エラーを返す
+        if (nextWord.slice(-1) === "ん") {
+            isGameOver = true;
+            return new Response(
+                JSON.stringify({
+                    "errorMessage": "「ん」で終わる単語が入力されました。しりとりは終了です。",
+                    "errorCode": "10000",
+                }),
+                {
+                    status: 401,
+                    headers: {
+                        "Content-Type": "application/json; charset=utf-8",
+                    },
+                },
+            );
+        }
+
+        // 同一であれば、previousWordを更新して現在の単語を返す
+        previousWord.push(nextWord);
+        return new Response(previousWord.at(-1));
+    }
+
+    // POST /reset: しりとりに戻す
+    if (_req.method === "POST" && pathname === "/reset") {
+        previousWord = ["しりとり"];
+        isGameOver = false;
+        return new Response(previousWord.at(-1));    
     }
 
     // ./public以下のファイルを公開

@@ -18,9 +18,33 @@
   <input id="nextWordInput" type="text" />
   <button id="nextWordSendButton">送信</button>
   <!-- リセットを実行するボタン -->
-  <button id="resetButton">リセット↻</button>
+  <p id="finishMessage"></p>
+  <button id="resetButton">リセット↻（終了）</button>
   <!-- JavaScriptを実行 -->
   <script>
+  class GameEndHandler {
+    constructor(previousWordEl, nextWordInput, nextWordSendButton) {
+      this.previousWordEl = previousWordEl;
+      this.nextWordInput = nextWordInput;
+      this.nextWordSendButton = nextWordSendButton;
+    }
+    endGame() {
+      this.nextWordInput.value = "";
+      this.nextWordInput.disabled = true;
+      this.nextWordSendButton.disabled = true;
+      document.querySelector("#finishMessage").textContent =
+    "ゲームオーバーです。リセットボタンで最初からやり直してください。";
+    }
+    startGame() {
+      this.nextWordInput.disabled = false;
+      this.nextWordSendButton.disabled = false;
+    }
+  }
+  const handler = new GameEndHandler(
+  document.querySelector("#previousWord"),
+  document.querySelector("#nextWordInput"),
+  document.querySelector("#nextWordSendButton")
+  );
     window.onload = async (event) => {
       // GET /shiritoriを実行
       const response = await fetch("/shiritori", { method: "GET" });
@@ -54,6 +78,9 @@
         const errorJson = await response.text();
         const errorObj = JSON.parse(errorJson);
         alert(errorObj["errorMessage"]);
+        if(response.status === 401) {
+          handler.endGame();
+        }
         return;
       }
 
@@ -67,17 +94,27 @@
       nextWordInput.value = "";
     }
     
-    // リセットボタン押下じに実行
+    // リセットボタン押下時に実行
     document.querySelector("#resetButton").onclick = async (event) => {
-      // POST /shiritori/resetを実行
-      const response = await fetch("/shiritori/reset", { method: "POST" });
+      // POST /resetを実行
+      const response = await fetch("/reset", {
+        method: "POST",
+      });
+
       // status: 200以外が返ってきた場合にエラーを表示
       if (response.status !== 200) {
         const errorJson = await response.text();
         const errorObj = JSON.parse(errorJson);
         alert(errorObj["errorMessage"]);
+        handler.endGame();
         return;
       }
+
+      // 表示を初期状態に戻す
+      const previousWord = await response.text();
+      document.querySelector("#previousWord").textContent = `前の単語: ${previousWord}`;
+      document.querySelector("#finishMessage").textContent = "";
+      handler.startGame();
     }
   </script>
 </body>
