@@ -5,7 +5,7 @@ let isGameOver = false;
 let startedAt = Date.now();
 let score = 0;
 let endScore = 0;
-let scoreBoad = [];
+let scoreBoard = [];
 
 const jsonResponse = (body, status = 200) => new Response(
     JSON.stringify(body),
@@ -85,7 +85,7 @@ Deno.serve(async (request) => {
         previousWord = ["しりとり"];
         isGameOver = false;
         endScore = score;
-        scoreBoad.push(endScore);
+        scoreBoard.push(endScore);
         if (request.method === "GET" && pathname === "/score-history") {
         return jsonResponse(scoreBoard);
         }
