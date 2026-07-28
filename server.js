@@ -1,118 +1,102 @@
-// server.js
-import { serveDir } from "jsr:@std/http/file-server";
+﻿import { serveDir } from "jsr:@std/http/file-server";
 
-// 直前の単語を保持しておく
 let previousWord = ["しりとり"];
 let isGameOver = false;
-// localhostにDenoのHTTPサーバーを展開
-Deno.serve(async (_req) => {
-    // パス名を取得する
-    // http://localhost:8000/hoge に接続した場合"/hoge"が取得できる
-    const pathname = new URL(_req.url).pathname;
-    console.log(`pathname: ${pathname}`);
+let startedAt = Date.now();
+let score = 0;
+let endScore = 0;
+let scoreBoad = [];
 
-    // GET /shiritori: 直前の単語を返す
-    if (_req.method === "GET" && pathname === "/shiritori") {
-        return new Response(previousWord.at(-1));
+const jsonResponse = (body, status = 200) => new Response(
+    JSON.stringify(body),
+    {
+        status,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+    },
+);
+
+Deno.serve(async (request) => {
+    const pathname = new URL(request.url).pathname;
+
+    if (request.method === "GET" && pathname === "/shiritori") {
+        return jsonResponse({ word: previousWord.at(-1), score });
     }
 
-    // POST /shiritori: 次の単語を受け取って保存する
-    if (_req.method === "POST" && pathname === "/shiritori") {
-        // リクエストのペイロードを取得
-        const requestJson = await _req.json();
-        // JSONの中からnextWordを取得
-        const nextWord = requestJson["nextWord"];
-        const lastWord = previousWord.at(-1);
+    if (request.method === "POST" && pathname === "/shiritori") {
+        const { nextWord } = await request.json();
 
         if (isGameOver) {
-            return new Response(
-                JSON.stringify({
-                    "errorMessage": "ゲームは終了しています。リセットしてください。",
-                    "errorCode": "10003",
-                }),
-                {
-                    status: 409,
-                    headers: {
-                        "Content-Type": "application/json; charset=utf-8",
-                    },
-                },
-            );
+            return jsonResponse({ errorMessage: "ゲームは終了しています。リセットしてください。", errorCode: "10003" }, 409);
         }
 
-        // 前の単語に続いていない場合、エラーを返す
-        if (lastWord.slice(-1) !== nextWord.slice(0, 1)) {
-            return new Response(
-                JSON.stringify({
-                    "errorMessage": "前の単語に続いていません",
-                    "errorCode": "10001",
-                }),
-                {
-                    status: 400,
-                    headers: {
-                        "Content-Type": "application/json; charset=utf-8",
-                    },
-                },
-            );
+        if (typeof nextWord !== "string" || nextWord.trim() === "") {
+            score -= 10;
+            return jsonResponse({ 
+                errorMessage: "単語を入力してください。", 
+                errorCode: "10004" ,
+                score,
+            }, 400);
         }
 
-        // すでに入力された単語の場合、エラーを返す
-        if (previousWord.includes(nextWord)) {
+        const word = nextWord.trim();
+        const lastWord = previousWord.at(-1);
+
+        if (lastWord.slice(-1) !== word.slice(0, 1)) {
+            score -= 10;
+            return jsonResponse({ 
+                errorMessage: "前の単語に続いていません", 
+                errorCode: "10001" ,
+                score,
+            }, 400);
+        }
+
+        if (previousWord.includes(word)) {
             isGameOver = true;
-            return new Response(
-                JSON.stringify({
-                    "errorMessage": "すでに使用された単語が入力されました。",
-                    "errorCode": "10002",
-                }),
-                {
-                    status: 401,
-                    headers: {
-                        "Content-Type": "application/json; charset=utf-8",
-                    },
-                },
-            );
+            return jsonResponse({ errorMessage: "すでに使用された単語が入力されました。", errorCode: "10002" }, 401);
         }
 
-        // 「ん」で終わる単語の場合、ゲーム終了エラーを返す
-        if (nextWord.slice(-1) === "ん") {
+        if (word.slice(-1) === "ん") {
             isGameOver = true;
-            return new Response(
-                JSON.stringify({
-                    "errorMessage": "「ん」で終わる単語が入力されました。しりとりは終了です。",
-                    "errorCode": "10000",
-                }),
-                {
-                    status: 401,
-                    headers: {
-                        "Content-Type": "application/json; charset=utf-8",
-                    },
-                },
-            );
+            return jsonResponse({ errorMessage: "「ん」で終わる単語が入力されました。しりとりは終了です。", errorCode: "10000" }, 401);
         }
 
-        // 同一であれば、previousWordを更新して現在の単語を返す
-        previousWord.push(nextWord);
-        return new Response(previousWord.at(-1));
+        previousWord.push(word);
+
+        const elapsed = Date.now() - startedAt;
+        if (elapsed < 20_000) {
+            score += 50;
+        } else if (elapsed < 40_000) {
+            score += 40;
+        } else if (elapsed < 60_000) {
+            score += 30;
+        } else if (elapsed < 80_000) {
+            score += 20;
+        } else if (elapsed < 100_000) {
+            score += 10;
+        } else {
+            score += 1;
+        }
+        startedAt = Date.now();
+
+        return jsonResponse({ word, score });
     }
 
-    // POST /reset: しりとりに戻す
-    if (_req.method === "POST" && pathname === "/reset") {
+    if (request.method === "POST" && pathname === "/reset") {
         previousWord = ["しりとり"];
         isGameOver = false;
-        return new Response(previousWord.at(-1));    
+        endScore = score;
+        scoreBoad.push(endScore);
+        if (request.method === "GET" && pathname === "/score-history") {
+        return jsonResponse(scoreBoard);
+        }
+        score = 0;
+        startedAt = Date.now();
+        return jsonResponse({ word: previousWord.at(-1), score });
     }
 
-    // ./public以下のファイルを公開
-    return serveDir(
-        _req,
-        {
-            /*
-            - fsRoot: 公開するフォルダを指定
-            - urlRoot: フォルダを展開するURLを指定。今回はlocalhost:8000/に直に展開する
-            - enableCors: CORSの設定を付加するか
-            */
-            fsRoot: "./public/",
-            urlRoot: "",
-            enableCors: true,
-        },
-    );
+    if (request.method === "GET" && pathname === "/recent-words") {
+        return jsonResponse(previousWord.slice(1).slice(-5));
+    }
+
+    return serveDir(request, { fsRoot: "./public/", urlRoot: "", enableCors: true });
 });

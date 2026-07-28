@@ -1,5 +1,23 @@
-/* public/styles.css */
+﻿/* public/styles.css */
 
 body {
     background: skyblue;
+}
+
+.word-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#scoreBoard {
+    margin-left: auto;
+    text-align: left;
+    font-weight: bold
+}
+
+#scoreHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 
 <head>
@@ -12,14 +12,21 @@
 <body>
   <!-- bodyタグの中には実際に表示するものなどを書く -->
   <h1>しりとり</h1>
+  <!-- スコアを表示する -->
+  <h4 >スコア: <span id="score">0</span></h4>
   <!-- 現在の単語を表示する場所 -->
-  <p id="previousWord"></p>
+  <div id = "scoreBoard">
+    <div>スコアボード</div>
+    <div id="previousWord"></div>
+  </div>
   <!-- 次の文字を入力するフォーム -->
   <input id="nextWordInput" type="text" />
   <button id="nextWordSendButton">送信</button>
   <!-- リセットを実行するボタン -->
   <p id="finishMessage"></p>
   <button id="resetButton">リセット↻（終了）</button>
+  <!-- 過去に出た単語直前5つを表示する場所-->
+  <p id="recentWords"></p>
   <!-- JavaScriptを実行 -->
   <script>
   class GameEndHandler {
@@ -49,11 +56,29 @@
       // GET /shiritoriを実行
       const response = await fetch("/shiritori", { method: "GET" });
       // responseの中からレスポンスのテキストデータを取得
-      const previousWord = await response.text();
+      const { word, score } = await response.json();
       // id: previousWordのタグを取得
       const paragraph = document.querySelector("#previousWord");
       // 取得したタグの中身を書き換える
-      paragraph.innerHTML = `前の単語: ${previousWord}`;
+      paragraph.textContent = `前の単語: ${word}`;
+      const recentWordsElement = document.querySelector("#recentWords");
+      const recentWordsResponse = await fetch("/recent-words", { method: "GET" });
+      const recentWords = await recentWordsResponse.json();
+      recentWordsElement.textContent = `直前の単語5つ: [${recentWords.join(", ")}]`;
+      document.querySelector("#score").textContent = score;
+          // scoreBoard を画面に表示する
+    const renderScoreHistory = async () => {
+      const response = await fetch("/score-history", { method: "GET" });
+      const scoreBoard = await response.json();
+      const list = document.querySelector("#scoreHistoryList");
+
+      list.innerHTML = "";
+      scoreBoard.forEach((score) => {
+        const item = document.createElement("div");
+        item.textContent = `スコア: ${score}`;
+        list.appendChild(item);
+      });
+    };
     }
 
     // 送信ボタンの押下時に実行
@@ -72,24 +97,35 @@
           body: JSON.stringify({ nextWord: nextWordInputText })
         }
       );
-
+      //scoreの加算指示
       // status: 200以外が返ってきた場合にエラーを表示
       if (response.status !== 200) {
-        const errorJson = await response.text();
-        const errorObj = JSON.parse(errorJson);
+        const errorObj = await response.json();
         alert(errorObj["errorMessage"]);
+        if (typeof errorObj.score === "number") {
+          document.querySelector("#score").textContent = errorObj.score;
+        }
         if(response.status === 401) {
           handler.endGame();
         }
         return;
       }
 
-      const previousWord = await response.text();
+      const { word, score } = await response.json();
+      // scoreの加算指示のレスポンスを取得
+      // scoreの表示を更新
+      const scoreElement = document.querySelector("#score");
+      scoreElement.textContent = score;
 
       // id: previousWordのタグを取得
       const paragraph = document.querySelector("#previousWord");
       // 取得したタグの中身を書き換える
-      paragraph.innerHTML = `前の単語: ${previousWord}`;
+      paragraph.textContent = `前の単語: ${word}`;
+      // 過去に出た単語直前5つを表示する場所の更新
+      const recentWordsElement = document.querySelector("#recentWords");
+      const recentWordsResponse = await fetch("/recent-words", { method: "GET" });
+      const recentWords = await recentWordsResponse.json();
+      recentWordsElement.textContent = `直前の単語5つ: [${recentWords.join(", ")}]`;
       // inputタグの中身を消去する
       nextWordInput.value = "";
     }
@@ -109,13 +145,37 @@
         handler.endGame();
         return;
       }
+      // scoreBoard を画面に表示する
+    const renderScoreHistory = async () => {
+      const response = await fetch("/score-history", { method: "GET" });
+      const scoreBoard = await response.json();
+      const list = document.querySelector("#scoreHistoryList");
+
+      list.innerHTML = "";
+      scoreBoard.forEach((score) => {
+        const item = document.createElement("div");
+        item.textContent = `スコア: ${score}`;
+        list.appendChild(item);
+      });
+    };
 
       // 表示を初期状態に戻す
-      const previousWord = await response.text();
-      document.querySelector("#previousWord").textContent = `前の単語: ${previousWord}`;
+      const { word, score } = await response.json();
+      document.querySelector("#previousWord").textContent = `前の単語: ${word}`;
+      document.querySelector("#score").textContent = score;
+      document.querySelector("#recentWords").textContent = "直前の単語5つ: []";
       document.querySelector("#finishMessage").textContent = "";
       handler.startGame();
     }
+    
+    window.addEventListener("beforeunload", async () => {
+    const scoreHistoryList = document.querySelector("#scoreHistoryList");
+    if (scoreHistoryList) {
+      scoreHistoryList.innerHTML = "";
+    }
+
+    await fetch("/reset", { method: "POST" });
+  });
   </script>
 </body>
 
