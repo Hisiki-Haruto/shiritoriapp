@@ -6,19 +6,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document</title>
-  <link rel=" stylesheet" href=" styles.css">
+  <link rel=" stylesheet" href="styles.css">
 </head>
 
 <body>
   <!-- bodyタグの中には実際に表示するものなどを書く -->
   <h1>しりとり</h1>
   <!-- スコアを表示する -->
-  <h4 >スコア: <span id="score">0</span></h4>
+  <h2 >スコア: <span id="score">0</span></h2>
   <!-- 現在の単語を表示する場所 -->
-  <div id = "scoreBoard">
+  <div id="scoreBoard">
     <div>スコアボード</div>
-    <div id="previousWord"></div>
+    <div id="scoreHistoryList"></div>
   </div>
+
+  <div id="previousWord"></div>
   <!-- 次の文字を入力するフォーム -->
   <input id="nextWordInput" type="text" />
   <button id="nextWordSendButton">送信</button>
@@ -27,6 +29,22 @@
   <button id="resetButton">リセット↻（終了）</button>
   <!-- 過去に出た単語直前5つを表示する場所-->
   <p id="recentWords"></p>
+  <!-- ルール説明-->
+  <h3>遊び方</h3>
+
+  <h4>ルール</h4>
+  <hr>
+    最初は「しりとり」からはじまるよ<br>
+    前の単語の最後の文字から始まる単語を入力しよう！（送信ボタンを押すと送信できるよ）<br>
+    正しい単語ならスコアアップ！<br>
+    スコアは送信が早いほど高いよ<br>
+    間違えた単語や空欄のままだと、減点されちゃうよ<br>
+    同じ単語を使用したり、最後に「ん」つくとゲームオーバーだから気をつけてね<br>
+  <hr>
+  <small>※ 「ー」は前の文字として判定されます。</small><br>
+  <small>※ 濁点・半濁点は同じ文字として判定されます。（か＝が、は＝ば＝ぱ）</small><br>
+  <small>※ カタカナでも入力できますが、ひらがなで入力するとよりスムーズに遊べます。</small><br>
+  <small><bold>開始する際はリセットボタンを押してください。</bold></small>
   <!-- JavaScriptを実行 -->
   <script>
   class GameEndHandler {
@@ -52,6 +70,25 @@
   document.querySelector("#nextWordInput"),
   document.querySelector("#nextWordSendButton")
   );
+
+  const renderScoreHistory = async () => {
+    const response = await fetch("/score-history");
+    const scoreBoard = await response.json();
+
+    const list = document.querySelector("#scoreHistoryList");
+
+    list.innerHTML = "";
+
+    scoreBoard
+      .slice()
+      .reverse()
+      .forEach((score, index) => {
+        const item = document.createElement("div");
+        item.textContent = `${score}点`;
+        list.appendChild(item);
+      });
+    };
+
     window.onload = async (event) => {
       // GET /shiritoriを実行
       const response = await fetch("/shiritori", { method: "GET" });
@@ -66,19 +103,7 @@
       const recentWords = await recentWordsResponse.json();
       recentWordsElement.textContent = `直前の単語5つ: [${recentWords.join(", ")}]`;
       document.querySelector("#score").textContent = score;
-          // scoreBoard を画面に表示する
-    const renderScoreHistory = async () => {
-      const response = await fetch("/score-history", { method: "GET" });
-      const scoreBoard = await response.json();
-      const list = document.querySelector("#scoreHistoryList");
-
-      list.innerHTML = "";
-      scoreBoard.forEach((score) => {
-        const item = document.createElement("div");
-        item.textContent = `スコア: ${score}`;
-        list.appendChild(item);
-      });
-    };
+      await renderScoreHistory();
     }
 
     // 送信ボタンの押下時に実行
@@ -145,22 +170,10 @@
         handler.endGame();
         return;
       }
-      // scoreBoard を画面に表示する
-    const renderScoreHistory = async () => {
-      const response = await fetch("/score-history", { method: "GET" });
-      const scoreBoard = await response.json();
-      const list = document.querySelector("#scoreHistoryList");
-
-      list.innerHTML = "";
-      scoreBoard.forEach((score) => {
-        const item = document.createElement("div");
-        item.textContent = `スコア: ${score}`;
-        list.appendChild(item);
-      });
-    };
 
       // 表示を初期状態に戻す
       const { word, score } = await response.json();
+      await renderScoreHistory();
       document.querySelector("#previousWord").textContent = `前の単語: ${word}`;
       document.querySelector("#score").textContent = score;
       document.querySelector("#recentWords").textContent = "直前の単語5つ: []";
@@ -174,7 +187,7 @@
       scoreHistoryList.innerHTML = "";
     }
 
-    await fetch("/reset", { method: "POST" });
+    navigator.sendBeacon("/reset");
   });
   </script>
 </body>
